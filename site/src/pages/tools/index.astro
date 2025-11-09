@@ -1,0 +1,146 @@
+---
+import PageLayout from '../../layouts/PageLayout.astro';
+import Hero from '../../components/ui/Hero';
+import ToolShowcase from '../../components/tools/ToolShowcase';
+import ScrollReveal from '../../components/ui/ScrollReveal';
+import { tools } from '../../data/tools';
+
+const editors = tools.filter((t) => t.category === 'editor');
+const models = tools.filter((t) => t.category === 'model');
+const protocols = tools.filter((t) => t.category === 'protocol');
+const knowledge = tools.filter((t) => t.category === 'knowledge');
+---
+
+<PageLayout
+  title="工具生态 - 陈天 AI 训练营"
+  description="掌握最前沿的 AI 辅助编程工具"
+>
+  <Hero title="工具生态" subtitle="构建你的 AI 辅助开发工具链" client:load>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a href="#editors" class="btn-primary"> 探索工具 </a>
+      <a href="/curriculum" class="btn-secondary"> 查看课程 </a>
+    </div>
+  </Hero>
+
+  <section id="editors" class="py-24 bg-bg-primary">
+    <div class="container-custom">
+      <ScrollReveal client:load>
+        <h2 class="text-3xl md:text-4xl font-bold text-center text-primary mb-4">
+          AI 代码编辑器
+        </h2>
+        <p class="text-center text-text-secondary mb-16 max-w-2xl mx-auto">
+          新一代 AI 原生开发工具，让编程变得更智能、更高效
+        </p>
+      </ScrollReveal>
+
+      <div class="space-y-32">
+        {
+          editors.map((tool, index) => (
+            <ToolShowcase
+              id={tool.id}
+              name={tool.name}
+              tagline={tool.tagline}
+              description={tool.description}
+              features={tool.features}
+              href={`/tools/${tool.id}`}
+              reverse={index % 2 === 1}
+              client:load
+            />
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="py-24 bg-bg-secondary">
+    <div class="container-custom">
+      <ScrollReveal client:load>
+        <h2 class="text-3xl md:text-4xl font-bold text-center text-primary mb-4">
+          大语言模型
+        </h2>
+        <p class="text-center text-text-secondary mb-16 max-w-2xl mx-auto">
+          强大的 AI 模型，为编程工具提供智能支持
+        </p>
+      </ScrollReveal>
+
+      <div class="space-y-32">
+        {
+          models.map((tool, index) => (
+            <ToolShowcase
+              id={tool.id}
+              name={tool.name}
+              tagline={tool.tagline}
+              description={tool.description}
+              features={tool.features}
+              href={`/tools/${tool.id}`}
+              reverse={index % 2 === 0}
+              client:load
+            />
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  <section class="py-24 bg-bg-primary">
+    <div class="container-custom">
+      <ScrollReveal client:load>
+        <h2 class="text-3xl md:text-4xl font-bold text-center text-primary mb-4">
+          协议与生态
+        </h2>
+        <p class="text-center text-text-secondary mb-16 max-w-2xl mx-auto">
+          开放协议和生态系统，扩展 AI 的能力边界
+        </p>
+      </ScrollReveal>
+
+      <div class="space-y-32">
+        {
+          protocols.map((tool, index) => (
+            <ToolShowcase
+              id={tool.id}
+              name={tool.name}
+              tagline={tool.tagline}
+              description={tool.description}
+              features={tool.features}
+              href={`/tools/${tool.id}`}
+              reverse={index % 2 === 1}
+              client:load
+            />
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  {
+    knowledge.length > 0 && (
+      <section class="py-24 bg-bg-secondary">
+        <div class="container-custom">
+          <ScrollReveal client:load>
+            <h2 class="text-3xl md:text-4xl font-bold text-center text-primary mb-4">
+              知识管理
+            </h2>
+            <p class="text-center text-text-secondary mb-16 max-w-2xl mx-auto">
+              智能化的知识管理和学习辅助工具
+            </p>
+          </ScrollReveal>
+
+          <div class="space-y-32">
+            {knowledge.map((tool, index) => (
+              <ToolShowcase
+                id={tool.id}
+                name={tool.name}
+                tagline={tool.tagline}
+                description={tool.description}
+                features={tool.features}
+                href={`/tools/${tool.id}`}
+                reverse={index % 2 === 0}
+                client:load
+              />
+            ))}
+          </div>
+        </div>
+      </section>
+    )
+  }
+</PageLayout>

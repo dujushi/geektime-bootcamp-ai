@@ -1,0 +1,77 @@
+---
+import PageLayout from '../../layouts/PageLayout.astro';
+import Hero from '../../components/ui/Hero';
+import Timeline from '../../components/course/Timeline';
+import AnimatedDiagram from '../../components/diagrams/AnimatedDiagram';
+import { getTimelineData } from '../../data/curriculum';
+
+const timelineData = getTimelineData();
+
+const learningPathDiagram = `graph TB
+    A[第1周: AI编码新范式] --> B[第2周: 深入Cursor]
+    A --> C[第3周: 深入Claude Code]
+    B --> D[第4周: 代码库理解]
+    C --> D
+    D --> E[第5周: 深入MCP]
+    E --> F[第6周: Agent核心]
+    F --> G[第7周: 全流程实践]
+    G --> H[第8周: 回顾展望]
+
+    style A fill:#0071e3,color:#fff
+    style B fill:#bf5af2,color:#fff
+    style C fill:#bf5af2,color:#fff
+    style D fill:#ff9500,color:#fff
+    style E fill:#ff2d55,color:#fff
+    style F fill:#34c759,color:#fff
+    style G fill:#0071e3,color:#fff
+    style H fill:#86868b,color:#fff`;
+---
+
+<PageLayout
+  title="课程大纲 - 陈天 AI 训练营"
+  description="8周系统化学习，从 AI 编码入门到 Agent 开发精通"
+>
+  <Hero
+    title="8周学习路径"
+    subtitle="从入门到精通，系统掌握 AI 辅助编程"
+    client:load
+  >
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a href="#timeline" class="btn-primary"> 查看课程大纲 </a>
+      <a href="/projects" class="btn-secondary"> 实战项目 </a>
+    </div>
+  </Hero>
+
+  <section class="py-24 bg-bg-primary">
+    <div class="container-custom">
+      <h2 class="text-3xl md:text-4xl font-bold text-center text-primary mb-8">
+        学习路径图
+      </h2>
+      <p class="text-center text-text-secondary mb-12 max-w-2xl mx-auto">
+        循序渐进的课程设计，每周一个主题，逐步深入 AI 辅助编程的核心技能
+      </p>
+      <AnimatedDiagram code={learningPathDiagram} client:load />
+    </div>
+  </section>
+
+  <section id="timeline" class="py-24 bg-bg-secondary">
+    <div class="container-custom">
+      <h2 class="text-3xl md:text-4xl font-bold text-center text-primary mb-16">
+        课程时间线
+      </h2>
+      <Timeline items={timelineData} client:load />
+    </div>
+  </section>
+
+  <section class="py-24 bg-bg-primary">
+    <div class="container-custom text-center">
+      <h2 class="text-3xl md:text-4xl font-bold text-primary mb-8">
+        准备好开始学习了吗？
+      </h2>
+      <p class="text-xl text-text-secondary mb-8 max-w-2xl mx-auto">
+        点击任意周次，查看详细的学习内容和实践项目
+      </p>
+      <a href="/curriculum/week-1" class="btn-primary"> 开始第一周课程 </a>
+    </div>
+  </section>
+</PageLayout>

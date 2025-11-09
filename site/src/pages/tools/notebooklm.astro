@@ -1,0 +1,24 @@
+---
+import PageLayout from '../../layouts/PageLayout.astro';
+import ToolDetail from '../../components/tools/ToolDetail';
+import { getToolById } from '../../data/tools';
+
+const tool = getToolById('notebooklm');
+if (!tool) {
+  return Astro.redirect('/tools');
+}
+---
+
+<PageLayout title={`${tool.name} - ${tool.tagline}`} description={tool.description}>
+  <div class="pt-24 pb-16 bg-bg-secondary min-h-screen">
+    <div class="container-custom">
+      <ToolDetail tool={tool} client:load />
+      
+      <div class="mt-12 text-center">
+        <a href="/tools" class="text-accent hover:underline">
+          ← 返回工具生态
+        </a>
+      </div>
+    </div>
+  </div>
+</PageLayout>

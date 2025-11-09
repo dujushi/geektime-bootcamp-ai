@@ -1,0 +1,46 @@
+---
+import PageLayout from '../../layouts/PageLayout.astro';
+import WeekModule from '../../components/course/WeekModule';
+import { getWeekData } from '../../data/curriculum';
+
+const weekNumber = 4;
+const weekData = getWeekData(weekNumber);
+if (!weekData) {
+  return Astro.redirect('/curriculum');
+}
+
+const prevWeek = weekNumber > 1 ? weekNumber - 1 : null;
+const nextWeek = weekNumber < 8 ? weekNumber + 1 : null;
+---
+
+<PageLayout
+  title={`第${weekData.weekNumber}周: ${weekData.title} - 陈天 AI 训练营`}
+  description={weekData.subtitle}
+>
+  <div class="pt-24 pb-16 bg-bg-secondary">
+    <div class="container-custom">
+      <WeekModule {...weekData} client:load />
+      
+      <div class="flex justify-between items-center mt-12">
+        {prevWeek ? (
+          <a href={`/curriculum/week-${prevWeek}`} class="text-accent hover:underline">
+            ← 第{prevWeek}周
+          </a>
+        ) : (
+          <a href="/curriculum" class="text-accent hover:underline">
+            ← 返回课程大纲
+          </a>
+        )}
+        {nextWeek ? (
+          <a href={`/curriculum/week-${nextWeek}`} class="btn-primary">
+            下一周 →
+          </a>
+        ) : (
+          <a href="/curriculum" class="btn-primary">
+            完成课程 ✓
+          </a>
+        )}
+      </div>
+    </div>
+  </div>
+</PageLayout>
