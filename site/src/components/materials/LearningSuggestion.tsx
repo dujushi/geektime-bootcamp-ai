@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion';
+import { getUrl } from '../../utils/url';
 
 interface WeekItem {
   week: string;
@@ -29,14 +30,14 @@ export default function LearningSuggestion({ weeks, readings }: LearningSuggesti
       }}
     >
       <h2
-        className="text-h2 font-bold text-ink"
+        className="font-bold text-h2 text-ink"
         style={{ marginBottom: 'var(--space-8)' }}
       >
         🎓 学习建议
       </h2>
 
       <h3
-        className="text-h3 font-bold text-ink"
+        className="font-bold text-h3 text-ink"
         style={{ marginBottom: 'var(--space-5)' }}
       >
         循序渐进
@@ -59,7 +60,7 @@ export default function LearningSuggestion({ weeks, readings }: LearningSuggesti
       </div>
 
       <h3
-        className="text-h3 font-bold text-ink"
+        className="font-bold text-h3 text-ink"
         style={{ marginBottom: 'var(--space-5)' }}
       >
         延伸阅读
@@ -75,7 +76,7 @@ export default function LearningSuggestion({ weeks, readings }: LearningSuggesti
         {readings.map((link, index) => (
           <a
             key={index}
-            href={link.href}
+            href={getUrl(link.href)}
             target={link.external ? "_blank" : undefined}
             rel={link.external ? "noopener noreferrer" : undefined}
             className="md-card md-card-interactive"

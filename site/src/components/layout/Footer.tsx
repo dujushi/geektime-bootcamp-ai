@@ -1,4 +1,6 @@
-import { Github, Twitter, Mail } from 'lucide-react';
+import { Github } from 'lucide-react';
+
+import { getUrl } from '../../utils/url';
 
 export default function Footer() {
   const currentYear = new Date().getFullYear();
@@ -23,20 +25,18 @@ export default function Footer() {
   };
 
   const socialLinks = [
-    { icon: Github, href: 'https://github.com', label: 'GitHub' },
-    { icon: Twitter, href: 'https://twitter.com', label: 'Twitter' },
-    { icon: Mail, href: 'mailto:contact@example.com', label: 'Email' },
+    { icon: Github, href: 'https://github.com/tyrchen/geektime-bootcamp-ai', label: 'GitHub' },
   ];
 
   return (
-    <footer className="border-t-2 border-graphite bg-cloud mt-12">
-      <div className="md-container py-12">
-        <div className="grid grid-cols-1 gap-2 md:grid-cols-4 mb-12">
+    <footer className="mt-12 border-t-2 border-graphite bg-cloud">
+      <div className="py-12 md-container">
+        <div className="grid grid-cols-1 gap-2 mb-12 md:grid-cols-4">
           <div className="md:col-span-1">
             <h3 className="text-h3 font-bold uppercase tracking-[0.08em] bg-gradient-to-tr from-sunbeam to-sky text-transparent bg-clip-text mb-6">
               陈天 AI 训练营
             </h3>
-            <p className="text-body text-slate mb-6">
+            <p className="mb-6 text-body text-slate">
               让 AI 成为你的编程超能力
             </p>
             <span className="md-badge">✨ 8周精通 AI 编程</span>
@@ -51,7 +51,7 @@ export default function Footer() {
                 {links.map((link) => (
                   <li key={link.href}>
                     <a
-                      href={link.href}
+                      href={getUrl(link.href)}
                       className="inline-flex gap-2 items-center pb-1 border-b-2 border-transparent transition-colors duration-150 hover:border-graphite hover:text-ink"
                     >
                       {link.label}
@@ -63,9 +63,9 @@ export default function Footer() {
           ))}
         </div>
 
-        <div className="flex flex-col items-center border-t-2 gap-8 border-graphite pt-space-10 text-ui text-slate md:flex-row md:justify-between">
+        <div className="flex flex-col gap-8 items-center border-t-2 border-graphite pt-space-10 text-ui text-slate md:flex-row md:justify-between">
           <p>© {currentYear} 陈天极客时间 AI 训练营 • All rights reserved.</p>
-          <div className="flex items-center gap-8">
+          <div className="flex gap-8 items-center">
             {socialLinks.map((social) => {
               const Icon = social.icon;
               return (
@@ -75,7 +75,7 @@ export default function Footer() {
                   aria-label={social.label}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="border-2 transition-transform duration-150 border-graphite rounded-micro p-2 text-ink hover:-translate-y-1 hover:bg-softBlue"
+                  className="p-2 border-2 transition-transform duration-150 border-graphite rounded-micro text-ink hover:-translate-y-1 hover:bg-softBlue"
                 >
                   <Icon size={20} />
                 </a>

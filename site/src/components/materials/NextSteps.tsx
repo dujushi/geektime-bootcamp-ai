@@ -1,3 +1,5 @@
+import { getUrl } from '../../utils/url';
+
 interface NextStepLink {
   title: string;
   description: string;
@@ -15,7 +17,7 @@ export default function NextSteps({ title = '📚 下一步', links }: NextSteps
   return (
     <div style={{ marginTop: 'var(--space-12)', marginBottom: 'var(--space-12)' }}>
       <h2
-        className="text-h2 font-bold text-ink"
+        className="font-bold text-h2 text-ink"
         style={{ marginBottom: 'var(--space-8)' }}
       >
         {title}
@@ -31,7 +33,7 @@ export default function NextSteps({ title = '📚 下一步', links }: NextSteps
         {links.map((link, index) => (
           <a
             key={index}
-            href={link.href}
+            href={getUrl(link.href)}
             target={link.external ? "_blank" : undefined}
             rel={link.external ? "noopener noreferrer" : undefined}
             className="md-card md-card-interactive"
