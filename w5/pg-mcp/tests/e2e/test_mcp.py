@@ -136,16 +136,26 @@ class TestMCPServerErrors:
     @pytest.mark.asyncio
     async def test_query_before_initialization(self):
         """Test calling query tool before server initialization."""
-        # Call query without lifespan context
-        result = await query(
-            question="SELECT 1",
-            return_type="sql",
-        )
+        # Reset global state to ensure clean test
+        import pg_mcp.server as server_module
 
-        # Should return initialization error
-        assert result["success"] is False
-        assert "error" in result
-        assert result["error"]["code"] == "SERVER_NOT_INITIALIZED"
+        original_orchestrator = server_module._orchestrator
+        server_module._orchestrator = None
+
+        try:
+            # Call query without lifespan context
+            result = await query(
+                question="SELECT 1",
+                return_type="sql",
+            )
+
+            # Should return initialization error
+            assert result["success"] is False
+            assert "error" in result
+            assert result["error"]["code"] == "SERVER_NOT_INITIALIZED"
+        finally:
+            # Restore original state
+            server_module._orchestrator = original_orchestrator
 
     @pytest.mark.asyncio
     async def test_malformed_question_handling(self):
