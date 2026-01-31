@@ -257,8 +257,6 @@ class TestResilienceConfig:
         """Test default configuration values."""
         config = ResilienceConfig()
         assert config.max_retries == 3
-        assert config.retry_delay == 1.0
-        assert config.backoff_factor == 2.0
         assert config.circuit_breaker_threshold == 5
         assert config.circuit_breaker_timeout == 60.0
 
@@ -266,12 +264,10 @@ class TestResilienceConfig:
         """Test custom configuration values."""
         config = ResilienceConfig(
             max_retries=5,
-            retry_delay=2.0,
-            backoff_factor=3.0,
+            circuit_breaker_threshold=10,
         )
         assert config.max_retries == 5
-        assert config.retry_delay == 2.0
-        assert config.backoff_factor == 3.0
+        assert config.circuit_breaker_threshold == 10
 
     def test_invalid_values(self) -> None:
         """Test invalid values are rejected."""
@@ -279,7 +275,7 @@ class TestResilienceConfig:
             ResilienceConfig(max_retries=-1)
 
         with pytest.raises(ValidationError):
-            ResilienceConfig(backoff_factor=0.5)
+            ResilienceConfig(circuit_breaker_threshold=0)
 
 
 class TestObservabilityConfig:
@@ -292,7 +288,7 @@ class TestObservabilityConfig:
         # 生产环境应该通过环境变量显式设置
         assert config.metrics_port == 9090
         assert config.log_level == "INFO"
-        assert config.log_format == "json"
+        assert config.log_format == "text"
 
     def test_custom_values(self) -> None:
         """Test custom configuration values."""

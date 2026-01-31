@@ -18,7 +18,6 @@ from pg_mcp.db.pool import close_pools, create_pool
 from pg_mcp.models.query import QueryRequest, QueryResponse, ReturnType
 from pg_mcp.observability.logging import configure_logging, get_logger
 from pg_mcp.observability.metrics import MetricsCollector
-from pg_mcp.resilience.circuit_breaker import CircuitBreaker
 from pg_mcp.resilience.rate_limiter import MultiRateLimiter
 from pg_mcp.services.orchestrator import QueryOrchestrator
 from pg_mcp.services.result_validator import ResultValidator
@@ -34,7 +33,6 @@ _pools: dict[str, Pool] | None = None
 _schema_cache: SchemaCache | None = None
 _orchestrator: QueryOrchestrator | None = None
 _metrics: MetricsCollector | None = None
-_circuit_breaker: CircuitBreaker | None = None
 _rate_limiter: MultiRateLimiter | None = None
 
 
@@ -68,8 +66,7 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
         ...     # Server is running with all components initialized
         ...     pass
     """
-    global _settings, _pools, _schema_cache, _orchestrator, _metrics
-    global _circuit_breaker, _rate_limiter
+    global _settings, _pools, _schema_cache, _orchestrator, _metrics, _rate_limiter
 
     logger.info("Starting PostgreSQL MCP Server initialization...")
 
@@ -177,17 +174,12 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
         # 7. Initialize resilience components
         logger.info("Initializing resilience components...")
 
-        # Circuit Breaker for LLM calls
-        _circuit_breaker = CircuitBreaker(
-            failure_threshold=_settings.resilience.circuit_breaker_threshold,
-            recovery_timeout=_settings.resilience.circuit_breaker_timeout,
-        )
-
-        # Rate Limiter
+        # Rate Limiter for controlling concurrent operations
         _rate_limiter = MultiRateLimiter(
             query_limit=10,  # Can be made configurable
             llm_limit=5,  # Can be made configurable
         )
+        # Note: Circuit breaker is instantiated within QueryOrchestrator
 
         # 8. Create QueryOrchestrator
         logger.info("Creating query orchestrator...")

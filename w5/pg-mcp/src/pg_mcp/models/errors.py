@@ -36,49 +36,6 @@ class ErrorCode(StrEnum):
     RESOURCE_EXHAUSTED = "resource_exhausted"
 
 
-class ErrorDetail:
-    """Structured error detail information."""
-
-    def __init__(
-        self,
-        code: ErrorCode,
-        message: str,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        """Initialize error detail.
-
-        Args:
-            code: Error code identifier.
-            message: Human-readable error message.
-            details: Optional additional context.
-        """
-        self.code = code
-        self.message = message
-        self.details = details or {}
-
-    def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation.
-
-        Returns:
-            dict: Dictionary containing error information.
-        """
-        result: dict[str, Any] = {
-            "code": self.code,
-            "message": self.message,
-        }
-        if self.details:
-            result["details"] = self.details
-        return result
-
-    def __repr__(self) -> str:
-        """String representation of error detail.
-
-        Returns:
-            str: String representation.
-        """
-        return f"ErrorDetail(code={self.code}, message={self.message!r})"
-
-
 class PgMcpError(Exception):
     """Base exception for all PostgreSQL MCP Server errors.
 
@@ -102,14 +59,6 @@ class PgMcpError(Exception):
         self.message = message
         self.code = code
         self.details = details or {}
-
-    def to_error_detail(self) -> ErrorDetail:
-        """Convert exception to ErrorDetail.
-
-        Returns:
-            ErrorDetail: Structured error detail.
-        """
-        return ErrorDetail(code=self.code, message=self.message, details=self.details)
 
     def __repr__(self) -> str:
         """String representation of error.

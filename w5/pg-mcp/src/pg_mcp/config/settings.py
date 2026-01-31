@@ -179,12 +179,6 @@ class ResilienceConfig(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="RESILIENCE_")
 
     max_retries: int = Field(default=3, ge=0, le=10, description="Maximum retry attempts")
-    retry_delay: float = Field(
-        default=1.0, ge=0.1, le=10.0, description="Initial retry delay in seconds"
-    )
-    backoff_factor: float = Field(
-        default=2.0, ge=1.0, le=10.0, description="Exponential backoff factor"
-    )
     circuit_breaker_threshold: int = Field(
         default=5, ge=1, le=100, description="Failures before circuit opens"
     )

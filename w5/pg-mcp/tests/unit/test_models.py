@@ -10,14 +10,19 @@ from pydantic import ValidationError
 from pg_mcp.models.errors import (
     DatabaseError,
     ErrorCode,
-    ErrorDetail,
     LLMTimeoutError,
     LLMUnavailableError,
     PgMcpError,
     SecurityViolationError,
     SQLParseError,
 )
-from pg_mcp.models.query import QueryRequest, QueryResponse, QueryResult, ReturnType
+from pg_mcp.models.query import (
+    ErrorDetail,
+    QueryRequest,
+    QueryResponse,
+    QueryResult,
+    ReturnType,
+)
 from pg_mcp.models.schema import (
     ColumnInfo,
     DatabaseSchema,
@@ -346,8 +351,6 @@ class TestQueryResponse:
 
     def test_error_response(self) -> None:
         """Test error response."""
-        from pg_mcp.models.query import ErrorDetail
-
         response = QueryResponse(
             success=False,
             error=ErrorDetail(
@@ -377,22 +380,22 @@ class TestErrorModels:
     def test_error_detail(self) -> None:
         """Test ErrorDetail creation."""
         detail = ErrorDetail(
-            code=ErrorCode.SQL_PARSE_ERROR,
+            code=ErrorCode.SQL_PARSE_ERROR.value,
             message="Invalid syntax",
             details={"position": 10},
         )
-        assert detail.code == ErrorCode.SQL_PARSE_ERROR
+        assert detail.code == ErrorCode.SQL_PARSE_ERROR.value
         assert detail.message == "Invalid syntax"
         assert detail.details["position"] == 10
 
     def test_error_detail_to_dict(self) -> None:
         """Test ErrorDetail serialization."""
         detail = ErrorDetail(
-            code=ErrorCode.DATABASE_ERROR,
+            code=ErrorCode.DATABASE_ERROR.value,
             message="Connection failed",
         )
-        d = detail.to_dict()
-        assert d["code"] == ErrorCode.DATABASE_ERROR
+        d = detail.model_dump()
+        assert d["code"] == ErrorCode.DATABASE_ERROR.value
         assert d["message"] == "Connection failed"
 
     def test_base_exception(self) -> None:
@@ -432,14 +435,3 @@ class TestErrorModels:
         """Test LLMUnavailableError."""
         err = LLMUnavailableError(message="API unavailable")
         assert err.code == ErrorCode.LLM_UNAVAILABLE
-
-    def test_error_to_detail(self) -> None:
-        """Test exception to ErrorDetail conversion."""
-        err = SecurityViolationError(
-            message="Blocked function",
-            details={"function": "pg_sleep"},
-        )
-        detail = err.to_error_detail()
-        assert detail.code == ErrorCode.SECURITY_VIOLATION
-        assert detail.message == "Blocked function"
-        assert detail.details["function"] == "pg_sleep"
