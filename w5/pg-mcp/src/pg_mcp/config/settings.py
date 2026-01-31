@@ -88,6 +88,18 @@ class SecurityConfig(BaseSettings):
         ],
         description="List of blocked PostgreSQL functions",
     )
+    blocked_tables: list[str] = Field(
+        default_factory=list,
+        description="List of table names to block access to (e.g., sensitive system tables)",
+    )
+    blocked_columns: list[str] = Field(
+        default_factory=list,
+        description="List of column names to block access to (e.g., passwords, ssn). "
+        "Can be qualified with table name (e.g., 'users.password_hash')",
+    )
+    allow_explain: bool = Field(
+        default=False, description="Allow EXPLAIN statements for query plan analysis"
+    )
     max_rows: int = Field(default=10000, ge=1, le=100000, description="Maximum rows to return")
     max_execution_time: float = Field(
         default=30.0, ge=1.0, le=300.0, description="Maximum query execution time in seconds"
@@ -105,6 +117,22 @@ class SecurityConfig(BaseSettings):
         """Parse comma-separated string or list."""
         if isinstance(v, str):
             return [f.strip() for f in v.split(",") if f.strip()]
+        return v
+
+    @field_validator("blocked_tables", mode="before")
+    @classmethod
+    def parse_blocked_tables(cls, v: str | list[str]) -> list[str]:
+        """Parse comma-separated string or list."""
+        if isinstance(v, str):
+            return [t.strip() for t in v.split(",") if t.strip()]
+        return v
+
+    @field_validator("blocked_columns", mode="before")
+    @classmethod
+    def parse_blocked_columns(cls, v: str | list[str]) -> list[str]:
+        """Parse comma-separated string or list."""
+        if isinstance(v, str):
+            return [c.strip() for c in v.split(",") if c.strip()]
         return v
 
 
