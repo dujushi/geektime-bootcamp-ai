@@ -13,6 +13,7 @@ from asyncpg import Pool
 
 from pg_mcp.cache.schema_cache import SchemaCache
 from pg_mcp.config.settings import ResilienceConfig, ValidationConfig
+from pg_mcp.observability.metrics import MetricsCollector
 from pg_mcp.models.errors import (
     DatabaseError,
     ErrorCode,
@@ -77,6 +78,7 @@ class QueryOrchestrator:
         resilience_config: ResilienceConfig,
         validation_config: ValidationConfig,
         rate_limiter: MultiRateLimiter | None = None,
+        metrics: MetricsCollector | None = None,
     ) -> None:
         """Initialize query orchestrator.
 
@@ -90,6 +92,7 @@ class QueryOrchestrator:
             resilience_config: Resilience configuration for retries and circuit breaker.
             validation_config: Validation configuration including thresholds.
             rate_limiter: Optional rate limiter for controlling concurrent operations.
+            metrics: Optional metrics collector for observability.
         """
         self.sql_generator = sql_generator
         self.sql_validator = sql_validator
@@ -100,6 +103,7 @@ class QueryOrchestrator:
         self.resilience_config = resilience_config
         self.validation_config = validation_config
         self.rate_limiter = rate_limiter
+        self.metrics = metrics or MetricsCollector()
 
         # Create circuit breaker for LLM calls
         self.circuit_breaker = CircuitBreaker(
@@ -138,6 +142,9 @@ class QueryOrchestrator:
             "Starting query execution",
             extra={"request_id": request_id, "question": request.question[:100]},
         )
+
+        # Start query duration timer
+        query_start_time = self._get_current_time_ms()
 
         try:
             # Step 0: Validate question length
@@ -260,6 +267,11 @@ class QueryOrchestrator:
                 execution_time_ms=execution_time_ms,
             )
 
+            # Record successful query metrics
+            query_duration_s = (self._get_current_time_ms() - query_start_time) / 1000.0
+            self.metrics.query_requests.labels(status="success", database=database_name).inc()
+            self.metrics.query_duration.observe(query_duration_s)
+
             return QueryResponse(
                 success=True,
                 generated_sql=generated_sql,
@@ -280,6 +292,17 @@ class QueryOrchestrator:
                     "error_message": str(e),
                 },
             )
+
+            # Record failure metrics
+            database_name = self._resolve_database(request.database) if hasattr(request, "database") else "unknown"
+            query_duration_s = (self._get_current_time_ms() - query_start_time) / 1000.0
+            self.metrics.query_requests.labels(status="error", database=database_name).inc()
+            self.metrics.query_duration.observe(query_duration_s)
+
+            # Record security violations specifically
+            if isinstance(e, (SecurityViolationError, SQLParseError)):
+                self.metrics.sql_rejected.labels(reason=e.code.value).inc()
+
             return QueryResponse(
                 success=False,
                 generated_sql=None,
@@ -299,6 +322,16 @@ class QueryOrchestrator:
                 "Query execution failed with unexpected error",
                 extra={"request_id": request_id},
             )
+
+            # Record failure metrics
+            try:
+                database_name = self._resolve_database(request.database) if hasattr(request, "database") else "unknown"
+            except Exception:
+                database_name = "unknown"
+            query_duration_s = (self._get_current_time_ms() - query_start_time) / 1000.0
+            self.metrics.query_requests.labels(status="error", database=database_name).inc()
+            self.metrics.query_duration.observe(query_duration_s)
+
             return QueryResponse(
                 success=False,
                 generated_sql=None,
@@ -421,7 +454,10 @@ class QueryOrchestrator:
                     },
                 )
 
-                # Generate SQL with rate limiting
+                # Generate SQL with rate limiting and metrics
+                llm_start_time = self._get_current_time_ms()
+                self.metrics.llm_calls.labels(operation="sql_generation").inc()
+
                 if self.rate_limiter is not None:
                     try:
                         async with self.rate_limiter.for_llm(timeout=60.0):
@@ -443,6 +479,10 @@ class QueryOrchestrator:
                         previous_attempt=previous_sql,
                         error_feedback=error_feedback,
                     )
+
+                # Record LLM latency
+                llm_duration_s = (self._get_current_time_ms() - llm_start_time) / 1000.0
+                self.metrics.llm_latency.labels(operation="sql_generation").observe(llm_duration_s)
 
                 # Note: tokens_used would come from OpenAI response metadata if available
                 # For now, we don't extract it, but it can be added later
@@ -569,12 +609,20 @@ class QueryOrchestrator:
                 extra={"request_id": request_id},
             )
 
+            # Track result validation LLM call
+            self.metrics.llm_calls.labels(operation="result_validation").inc()
+            validation_start_time = self._get_current_time_ms()
+
             validation_result = await self.result_validator.validate(
                 question=question,
                 sql=sql,
                 results=results,
                 row_count=row_count,
             )
+
+            # Record validation LLM latency
+            validation_duration_s = (self._get_current_time_ms() - validation_start_time) / 1000.0
+            self.metrics.llm_latency.labels(operation="result_validation").observe(validation_duration_s)
 
             logger.info(
                 "Result validation completed",

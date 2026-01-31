@@ -193,6 +193,7 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
             resilience_config=_settings.resilience,
             validation_config=_settings.validation,
             rate_limiter=_rate_limiter,  # Pass rate limiter for concurrency control
+            metrics=_metrics,  # Pass metrics collector for observability
         )
 
         logger.info("PostgreSQL MCP Server initialization complete!")
@@ -240,6 +241,94 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
 
 # Create FastMCP server instance with lifespan
 mcp = FastMCP("pg-mcp", lifespan=lifespan)
+
+
+@mcp.tool()
+async def health_check() -> dict[str, Any]:
+    """Check the health status of the PostgreSQL MCP Server.
+
+    Returns comprehensive health information including:
+    - Service status (healthy/unhealthy)
+    - Database connectivity status for all configured databases
+    - Schema cache status
+    - Metrics availability
+    - Rate limiter status
+
+    Returns:
+        dict: Health status information with databases, cache, and metrics status
+
+    Example:
+        >>> health = await health_check()
+        >>> print(health["status"])
+        'healthy'
+    """
+    from datetime import datetime, timezone
+
+    if _orchestrator is None or _pools is None or _settings is None:
+        return {
+            "status": "unhealthy",
+            "error": "Server not initialized",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    # Check database connectivity
+    databases_status = {}
+    overall_healthy = True
+
+    for db_name, pool in _pools.items():
+        try:
+            size = pool.get_size()
+            free = pool.get_idle_size()
+            databases_status[db_name] = {
+                "status": "connected",
+                "pool_size": size,
+                "active_connections": size - free,
+            }
+        except Exception as e:
+            databases_status[db_name] = {
+                "status": "disconnected",
+                "error": str(e),
+            }
+            overall_healthy = False
+
+    # Check schema cache
+    schema_cache_status = {
+        "enabled": _settings.cache.enabled,
+        "cached_databases": len(_pools) if _schema_cache else 0,
+    }
+
+    # Check metrics
+    metrics_status = {
+        "enabled": _settings.observability.metrics_enabled,
+        "port": _settings.observability.metrics_port,
+    }
+
+    # Check rate limiter
+    rate_limiter_status = {}
+    if _rate_limiter:
+        stats = _rate_limiter.get_all_stats()
+        rate_limiter_status = {
+            "llm": {
+                "max": stats["llm"]["max_concurrent"],
+                "active": stats["llm"]["active_count"],
+                "available": stats["llm"]["available"],
+            },
+            "queries": {
+                "max": stats["queries"]["max_concurrent"],
+                "active": stats["queries"]["active_count"],
+                "available": stats["queries"]["available"],
+            },
+        }
+
+    return {
+        "status": "healthy" if overall_healthy else "degraded",
+        "version": "0.1.0",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "databases": databases_status,
+        "schema_cache": schema_cache_status,
+        "metrics": metrics_status,
+        "rate_limiter": rate_limiter_status,
+    }
 
 
 @mcp.tool()
