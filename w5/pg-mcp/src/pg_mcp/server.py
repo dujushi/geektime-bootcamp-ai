@@ -394,9 +394,29 @@ async def query(
         - Row count limits prevent memory exhaustion
         - All queries run in read-only transactions
     """
-    global _orchestrator
+    import uuid
+    from datetime import datetime, timezone
+
+    global _orchestrator, _metrics
+
+    # Generate request_id for full request tracking
+    request_id = str(uuid.uuid4())
+    handler_start_time = datetime.now(timezone.utc)
+
+    # Log handler invocation with request_id
+    logger.info(
+        "MCP tool handler invoked",
+        extra={
+            "request_id": request_id,
+            "tool": "query",
+            "question_length": len(question),
+            "database": database,
+            "return_type": return_type,
+        },
+    )
 
     if _orchestrator is None:
+        logger.error("Query handler called but server not initialized", extra={"request_id": request_id})
         return {
             "success": False,
             "error": {
@@ -408,6 +428,10 @@ async def query(
 
     # Validate return_type
     if return_type not in ("sql", "result"):
+        logger.warning(
+            "Invalid return_type provided",
+            extra={"request_id": request_id, "return_type": return_type},
+        )
         return {
             "success": False,
             "error": {
@@ -437,13 +461,33 @@ async def query(
     # Execute query through orchestrator
     try:
         response: QueryResponse = await _orchestrator.execute_query(request)
+
+        # Calculate handler duration
+        handler_duration = (datetime.now(timezone.utc) - handler_start_time).total_seconds()
+
+        # Log handler completion with request_id
+        logger.info(
+            "MCP tool handler completed",
+            extra={
+                "request_id": request_id,
+                "tool": "query",
+                "success": response.success,
+                "handler_duration_s": handler_duration,
+                "confidence": response.confidence if response.success else None,
+            },
+        )
+
         result = response.to_dict()
         # Ensure tokens_used is always present
         if "tokens_used" not in result:
             result["tokens_used"] = 0
         return result
     except Exception as e:
-        logger.exception("Unexpected error in query tool")
+        handler_duration = (datetime.now(timezone.utc) - handler_start_time).total_seconds()
+        logger.exception(
+            "Unexpected error in query tool",
+            extra={"request_id": request_id, "handler_duration_s": handler_duration},
+        )
         return {
             "success": False,
             "error": {

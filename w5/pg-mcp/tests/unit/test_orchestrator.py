@@ -408,7 +408,8 @@ class TestResultValidation:
             request_id="test-123",
         )
 
-        assert confidence == 100
+        # Returns threshold (70) instead of 100 to avoid falsely reporting high confidence
+        assert confidence == 70
 
 
 class TestExecuteQueryFlow:
