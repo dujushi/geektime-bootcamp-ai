@@ -200,6 +200,7 @@ async def lifespan(_app: FastMCP) -> AsyncIterator[None]:  # type: ignore[type-a
             pools=_pools,
             resilience_config=_settings.resilience,
             validation_config=_settings.validation,
+            rate_limiter=_rate_limiter,  # Pass rate limiter for concurrency control
         )
 
         logger.info("PostgreSQL MCP Server initialization complete!")

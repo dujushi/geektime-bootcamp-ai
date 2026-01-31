@@ -12,8 +12,10 @@ from pg_mcp.config.settings import ResilienceConfig, ValidationConfig
 from pg_mcp.models.errors import (
     DatabaseError,
     LLMError,
+    RateLimitExceededError,
     SecurityViolationError,
     SQLParseError,
+    ValidationError,
 )
 from pg_mcp.models.query import (
     QueryRequest,
@@ -769,3 +771,184 @@ class TestExecuteQueryFlow:
         assert response.success is True
         # Verify schema was fetched for auto-selected database
         mock_cache.get.assert_called_once_with("only_db")
+
+
+class TestInputValidation:
+    """Test input validation including question length checks."""
+
+    @pytest.mark.asyncio
+    async def test_question_length_validation_pass(self) -> None:
+        """Test that questions within length limit are accepted."""
+        mock_schema = DatabaseSchema(
+            database_name="test_db",
+            tables=[],
+            version="15.0",
+        )
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = mock_schema
+
+        mock_generator = AsyncMock()
+        mock_generator.generate.return_value = "SELECT 1;"
+
+        mock_validator = MagicMock()
+        mock_validator.validate_or_raise.return_value = None
+
+        orchestrator = QueryOrchestrator(
+            sql_generator=mock_generator,
+            sql_validator=mock_validator,
+            sql_executors={"test_db": MagicMock()},
+            result_validator=MagicMock(),
+            schema_cache=mock_cache,
+            pools={"test_db": MagicMock()},
+            resilience_config=ResilienceConfig(),
+            validation_config=ValidationConfig(max_question_length=100),
+        )
+
+        # Question within limit (50 chars < 100 limit)
+        request = QueryRequest(
+            question="What is the count of users in the database?",
+            database="test_db",
+            return_type=ReturnType.SQL,
+        )
+        response = await orchestrator.execute_query(request)
+
+        assert response.success is True
+        assert response.generated_sql == "SELECT 1;"
+
+    @pytest.mark.asyncio
+    async def test_question_length_validation_fail(self) -> None:
+        """Test that questions exceeding length limit are rejected."""
+        orchestrator = QueryOrchestrator(
+            sql_generator=MagicMock(),
+            sql_validator=MagicMock(),
+            sql_executors={"test_db": MagicMock()},
+            result_validator=MagicMock(),
+            schema_cache=MagicMock(),
+            pools={"test_db": MagicMock()},
+            resilience_config=ResilienceConfig(),
+            validation_config=ValidationConfig(max_question_length=50),
+        )
+
+        # Question exceeds limit (100 chars > 50 limit)
+        long_question = "a" * 100
+        request = QueryRequest(
+            question=long_question,
+            database="test_db",
+            return_type=ReturnType.SQL,
+        )
+        response = await orchestrator.execute_query(request)
+
+        # Should fail with validation error
+        assert response.success is False
+        assert response.error is not None
+        assert response.error.code == "validation_failed"
+        assert "exceeds maximum length" in response.error.message.lower()
+        assert response.error.details["question_length"] == 100
+        assert response.error.details["max_length"] == 50
+
+
+class TestRateLimiting:
+    """Test rate limiting for LLM and DB operations."""
+
+    @pytest.mark.asyncio
+    async def test_llm_rate_limiting_applied(self) -> None:
+        """Test that LLM calls are rate-limited."""
+        from pg_mcp.resilience.rate_limiter import MultiRateLimiter
+
+        mock_schema = DatabaseSchema(
+            database_name="test_db",
+            tables=[],
+            version="15.0",
+        )
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = mock_schema
+
+        mock_generator = AsyncMock()
+        mock_generator.generate.return_value = "SELECT 1;"
+
+        mock_validator = MagicMock()
+        mock_validator.validate_or_raise.return_value = None
+
+        rate_limiter = MultiRateLimiter(query_limit=10, llm_limit=5)
+
+        orchestrator = QueryOrchestrator(
+            sql_generator=mock_generator,
+            sql_validator=mock_validator,
+            sql_executors={"test_db": MagicMock()},
+            result_validator=MagicMock(),
+            schema_cache=mock_cache,
+            pools={"test_db": MagicMock()},
+            resilience_config=ResilienceConfig(),
+            validation_config=ValidationConfig(),
+            rate_limiter=rate_limiter,
+        )
+
+        request = QueryRequest(
+            question="Test query",
+            database="test_db",
+            return_type=ReturnType.SQL,
+        )
+        response = await orchestrator.execute_query(request)
+
+        # Should succeed with rate limiting
+        assert response.success is True
+        assert response.generated_sql == "SELECT 1;"
+
+        # Verify rate limiter was used
+        stats = rate_limiter.get_all_stats()
+        assert stats["llm"]["total_requests"] > 0
+
+    @pytest.mark.asyncio
+    async def test_db_rate_limiting_applied(self) -> None:
+        """Test that DB queries are rate-limited."""
+        from pg_mcp.resilience.rate_limiter import MultiRateLimiter
+
+        mock_schema = DatabaseSchema(
+            database_name="test_db",
+            tables=[],
+            version="15.0",
+        )
+
+        mock_cache = MagicMock()
+        mock_cache.get.return_value = mock_schema
+
+        mock_generator = AsyncMock()
+        mock_generator.generate.return_value = "SELECT 1;"
+
+        mock_validator = MagicMock()
+        mock_validator.validate_or_raise.return_value = None
+
+        mock_executor = AsyncMock()
+        mock_executor.execute.return_value = ([{"result": 1}], 1)
+
+        rate_limiter = MultiRateLimiter(query_limit=10, llm_limit=5)
+
+        orchestrator = QueryOrchestrator(
+            sql_generator=mock_generator,
+            sql_validator=mock_validator,
+            sql_executors={"test_db": mock_executor},
+            result_validator=MagicMock(),
+            schema_cache=mock_cache,
+            pools={"test_db": MagicMock()},
+            resilience_config=ResilienceConfig(),
+            validation_config=ValidationConfig(),
+            rate_limiter=rate_limiter,
+        )
+
+        request = QueryRequest(
+            question="Test query",
+            database="test_db",
+            return_type=ReturnType.RESULT,
+        )
+        response = await orchestrator.execute_query(request)
+
+        # Should succeed with rate limiting
+        assert response.success is True
+        assert response.data is not None
+
+        # Verify rate limiter was used for both LLM and queries
+        stats = rate_limiter.get_all_stats()
+        assert stats["llm"]["total_requests"] > 0
+        assert stats["queries"]["total_requests"] > 0

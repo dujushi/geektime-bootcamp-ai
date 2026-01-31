@@ -18,9 +18,11 @@ from pg_mcp.models.errors import (
     ErrorCode,
     LLMError,
     PgMcpError,
+    RateLimitExceededError,
     SchemaLoadError,
     SecurityViolationError,
     SQLParseError,
+    ValidationError,
 )
 from pg_mcp.models.query import (
     ErrorDetail,
@@ -31,6 +33,7 @@ from pg_mcp.models.query import (
     ValidationResult,
 )
 from pg_mcp.resilience.circuit_breaker import CircuitBreaker
+from pg_mcp.resilience.rate_limiter import MultiRateLimiter
 from pg_mcp.services.result_validator import ResultValidator
 from pg_mcp.services.sql_executor import SQLExecutor
 from pg_mcp.services.sql_generator import SQLGenerator
@@ -73,6 +76,7 @@ class QueryOrchestrator:
         pools: dict[str, Pool],
         resilience_config: ResilienceConfig,
         validation_config: ValidationConfig,
+        rate_limiter: MultiRateLimiter | None = None,
     ) -> None:
         """Initialize query orchestrator.
 
@@ -85,6 +89,7 @@ class QueryOrchestrator:
             pools: Dictionary mapping database names to connection pools.
             resilience_config: Resilience configuration for retries and circuit breaker.
             validation_config: Validation configuration including thresholds.
+            rate_limiter: Optional rate limiter for controlling concurrent operations.
         """
         self.sql_generator = sql_generator
         self.sql_validator = sql_validator
@@ -94,6 +99,7 @@ class QueryOrchestrator:
         self.pools = pools
         self.resilience_config = resilience_config
         self.validation_config = validation_config
+        self.rate_limiter = rate_limiter
 
         # Create circuit breaker for LLM calls
         self.circuit_breaker = CircuitBreaker(
@@ -134,6 +140,17 @@ class QueryOrchestrator:
         )
 
         try:
+            # Step 0: Validate question length
+            question_length = len(request.question)
+            if question_length > self.validation_config.max_question_length:
+                raise ValidationError(
+                    message=f"Question exceeds maximum length of {self.validation_config.max_question_length} characters",
+                    details={
+                        "question_length": question_length,
+                        "max_length": self.validation_config.max_question_length,
+                    },
+                )
+
             # Step 1: Resolve database name
             database_name = self._resolve_database(request.database)
             logger.debug(
@@ -203,7 +220,18 @@ class QueryOrchestrator:
                     details={"database": database_name},
                 )
 
-            results, total_count = await executor.execute(generated_sql)
+            # Execute with rate limiting
+            if self.rate_limiter is not None:
+                try:
+                    async with self.rate_limiter.for_queries(timeout=30.0):
+                        results, total_count = await executor.execute(generated_sql)
+                except TimeoutError as e:
+                    raise RateLimitExceededError(
+                        message="Database query rate limit exceeded, too many concurrent queries",
+                        details={"timeout": 30.0},
+                    ) from e
+            else:
+                results, total_count = await executor.execute(generated_sql)
 
             execution_time_ms = self._get_current_time_ms() - start_time
             logger.info(
@@ -393,13 +421,28 @@ class QueryOrchestrator:
                     },
                 )
 
-                # Generate SQL
-                generated_sql = await self.sql_generator.generate(
-                    question=question,
-                    schema=schema,
-                    previous_attempt=previous_sql,
-                    error_feedback=error_feedback,
-                )
+                # Generate SQL with rate limiting
+                if self.rate_limiter is not None:
+                    try:
+                        async with self.rate_limiter.for_llm(timeout=60.0):
+                            generated_sql = await self.sql_generator.generate(
+                                question=question,
+                                schema=schema,
+                                previous_attempt=previous_sql,
+                                error_feedback=error_feedback,
+                            )
+                    except TimeoutError as e:
+                        raise RateLimitExceededError(
+                            message="LLM rate limit exceeded, too many concurrent requests",
+                            details={"timeout": 60.0},
+                        ) from e
+                else:
+                    generated_sql = await self.sql_generator.generate(
+                        question=question,
+                        schema=schema,
+                        previous_attempt=previous_sql,
+                        error_feedback=error_feedback,
+                    )
 
                 # Note: tokens_used would come from OpenAI response metadata if available
                 # For now, we don't extract it, but it can be added later
